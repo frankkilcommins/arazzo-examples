@@ -1,0 +1,94 @@
+arazzo: 1.1.0
+info:
+  title: Ticket Escalation Workflow
+  version: 1.0.0
+  description: |
+    ### Workflow Overview
+
+    This workflow models ticket escalation handling using SQS and OpenAPI.
+    1. Create a new support ticket
+    2. Wait for an escalated-ticket message from the SQS queue
+    3. Log the escalation details
+    4. Notify a supervisor via email
+
+sourceDescriptions:
+  - name: EscalationApi
+    type: openapi
+    url: ./support-escalation.openapi.yaml
+  - name: EscalationEvents
+    type: asyncapi
+    url: ./escalation-events-sqs.asyncapi.yaml
+
+workflows:
+  - workflowId: handleEscalation
+    inputs:
+      required: [subject, description, priority, supervisorEmail]
+      type: object
+      properties:
+        subject:
+          type: string
+        description:
+          type: string
+        priority:
+          type: string
+        supervisorEmail:
+          type: string
+
+    steps:
+      - kind: openapi
+        stepId: CreateTicket
+        operationId: $sourceDescriptions.EscalationApi.createTicket
+        requestBody:
+          contentType: application/json
+          payload: |
+            {
+              "subject": "{$inputs.subject}",
+              "description": "{$inputs.description}",
+              "priority": "{$inputs.priority}"
+            }
+        successCriteria:
+          - condition: $statusCode == 201
+        outputs:
+          ticketId: $response.body#/ticketId
+
+      - kind: asyncapi
+        stepId: WaitForEscalation
+        operationId: $sourceDescriptions.EscalationEvents.receiveEscalation
+        action: receive
+        correlationId: $steps.CreateTicket.outputs.ticketId
+        timeout: 15000
+        successCriteria:
+          - condition: $message.payload.ticketId == "{$steps.CreateTicket.outputs.ticketId}"
+        outputs:
+          escalatedReason: $message.payload.reason
+          escalatedPriority: $message.payload.priority
+
+      - kind: openapi
+        stepId: LogEscalation
+        operationId: $sourceDescriptions.EscalationApi.logEscalation
+        dependsOn: 
+          - $steps.WaitForEscalation
+        requestBody:
+          contentType: application/json
+          payload: |
+            {
+              "ticketId": "{$steps.CreateTicket.outputs.ticketId}",
+              "priority": "{$steps.WaitForEscalation.outputs.escalatedPriority}",
+              "reason": "{$steps.WaitForEscalation.outputs.escalatedReason}"
+            }
+        successCriteria:
+          - condition: $statusCode == 200
+
+      - kind: openapi
+        stepId: NotifySupervisor
+        operationId: $sourceDescriptions.EscalationApi.notifySupervisor
+        requestBody:
+          contentType: application/json
+          payload: |
+            {
+              "to": "{$inputs.supervisorEmail}",
+              "subject": "Escalated Ticket Notification",
+              "body": "Ticket {$steps.CreateTicket.outputs.ticketId} has been escalated. Reason: {$steps.WaitForEscalation.outputs.escalatedReason}"
+            }
+        successCriteria:
+          - $statusCode == 200

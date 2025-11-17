@@ -1,0 +1,26 @@
+openapi: 3.1.0
+info:
+  title: Inventory Management API
+  version: 1.0.0
+paths:
+  /inventory/{productId}:
+    patch:
+      operationId: updateInventory
+      parameters:
+        - name: productId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                quantity:
+                  type: integer
+      responses:
+        '200':
+          description: Inventory updated successfully

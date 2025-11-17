@@ -1,0 +1,89 @@
+arazzo: 1.1.0
+info:
+  title: Document Signing Workflow (AsyncAPI Webhook)
+  version: 1.0.0
+  description: |
+    ### Workflow Overview
+
+    This workflow demonstrates use of an AsyncAPI-based webhook to receive document signing events.
+    It integrates:
+    - OpenAPI endpoints for submission, checking, and notification
+    - An AsyncAPI-defined `send` operation to model webhook notifications
+
+    Steps:
+    1. Submit a document for signing
+    2. Wait for documentSigned webhook event (AsyncAPI `send`)
+    3. Verify the document's status
+    4. Send a confirmation notification to the user
+
+sourceDescriptions:
+  - name: DocApi
+    type: openapi
+    url: ./document-signing.openapi.yaml
+  - name: WebhookApi
+    type: asyncapi
+    url: ./document-webhook.asyncapi.yaml
+
+workflows:
+  - workflowId: documentSignNotifyFlow
+    inputs:
+      required: [documentName, email]
+      type: object
+      properties:
+        documentName:
+          type: string
+        email:
+          type: string
+
+    steps:
+      - kind: openapi
+        stepId: SubmitDocument
+        operationId: $sourceDescriptions.DocApi.submitDocument
+        requestBody:
+          contentType: application/json
+          payload: |
+            {
+              "documentName": "{$inputs.documentName}",
+              "email": "{$inputs.email}"
+            }
+        successCriteria:
+          - condition: $statusCode == 201
+        outputs:
+          documentId: $response.body#/documentId
+
+      - kind: asyncapi
+        stepId: WaitForWebhook
+        operationId: $sourceDescriptions.WebhookApi.documentSigned
+        action: receive
+        correlationId: $steps.SubmitDocument.outputs.documentId
+        timeout: 60000
+        successCriteria:
+          - condition: $message.payload.status == "signed"
+        outputs:
+          docStatus: $message.payload.status
+
+      - kind: openapi
+        stepId: GetStatus
+        operationId: $sourceDescriptions.DocApi.getDocumentStatus
+        dependsOn:
+          - $steps.WaitForWebhook
+        parameters:
+          - name: documentId
+            in: path
+            value: $steps.SubmitDocument.outputs.documentId
+        successCriteria:
+          - condition: $response.body#/status == "signed"
+
+      - kind: openapi
+        stepId: NotifyUser
+        operationId: $sourceDescriptions.DocApi.sendNotification
+        requestBody:
+          contentType: application/json
+          payload: |
+            {
+              "email": "{$inputs.email}",
+              "subject": "Your document has been signed!",
+              "message": "The document '{$inputs.documentName}' was successfully signed and verified."
+            }
+        successCriteria:
+          - condition: $statusCode == 200

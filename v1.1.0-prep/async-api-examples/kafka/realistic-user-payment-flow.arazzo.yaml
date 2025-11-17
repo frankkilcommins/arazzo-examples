@@ -1,0 +1,119 @@
+arazzo: 1.1.0
+info:
+  title: Asynchronous User Creation and Payment Workflow
+  version: 1.0.0
+  description: |
+    This workflow checks if a user exists, creates one if necessary,
+    waits for a user acknowledgment event, sends a payment request event,
+    waits for confirmation, and then sends a confirmation email.
+
+sourceDescriptions:
+  - name: UserEmailApi
+    type: openapi
+    url: ./user-email-api.openapi.yaml
+  - name: EventBus
+    type: asyncapi
+    url: ./user-payment-events.asyncapi.yaml
+
+workflows:
+  - workflowId: userPaymentFlow
+    inputs:
+      required: [email, productId, amount]
+      type: object
+      properties:
+        email:
+          type: string
+        productId:
+          type: string
+        orderId:
+          type: string
+        amount:
+          type: number
+
+    steps:
+      - kind: openapi
+        stepId: GetUser
+        operationId: $sourceDescriptions.UserEmailApi.getUserByEmail
+        parameters:
+          - name: email
+            in: query
+            value: $inputs.email
+        successCriteria:
+          - condition: $statusCode == 200
+        outputs:
+          userId: $response.body#/id
+        onFailure:
+          - condition: $statusCode == 404
+            type: goto
+            step: CreateUser
+        onSuccess:
+          - condition: $statusCode == 200
+            goto: WaitForUserAck
+
+      - kind: openapi
+        stepId: CreateUser
+        operationId: $sourceDescriptions.UserEmailApi.createUser
+        requestBody:
+          contentType: application/json
+          payload: |
+            {
+              "email": "{$inputs.email}"
+            }
+        successCriteria:
+          - condition: $statusCode == 202
+        outputs:
+          userCorrelationId: $response.body#/correlationId
+
+      - kind: asyncapi
+        stepId: WaitForUserAck
+        operationId: $sourceDescriptions.EventBus.receiveUserAck
+        action: receive
+        correlationId: $steps.CreateUser.outputs.userCorrelationId
+        timeout: 10000
+        successCriteria:
+          - condition: $message.payload.status == "ok"
+        outputs:
+          userId: $message.payload.userId
+
+      - kind: asyncapi
+        stepId: SendPaymentRequest
+        operationId: $sourceDescriptions.EventBus.sendPaymentRequest
+        dependsOn:
+          - $steps.WaitForUserAck
+        action: send
+        requestBody:
+          contentType: application/json
+          payload: |
+            {
+              "userId": "{$steps.WaitForUserAck.outputs.userId}",
+              "productId": "{$inputs.productId}",
+              "orderId": "{$inputs.orderId}",
+              "amount": "{$inputs.amount}"
+            }
+        parameters:
+          - name: correlationId
+            in: header
+            value: "{$inputs.orderId}"
+
+      - kind: asyncapi
+        stepId: WaitForPaymentConfirm
+        operationId: $sourceDescriptions.EventBus.receivePaymentConfirm
+        action: receive
+        correlationId: $steps.WaitForUserAck.outputs.orderId
+        timeout: 15000
+        successCriteria:
+          - condition: $message.payload.status == "confirmed"
+
+      - kind: openapi
+        stepId: SendConfirmationEmail
+        operationId: $sourceDescriptions.EmailApi.sendEmail
+        join:
+          - $steps.WaitForPaymentConfirm
+        requestBody:
+          contentType: application/json
+          payload: |
+            {
+              "to": "{$inputs.email}",
+              "subject": "Your order #{$inputs.orderId} is confirmed!",
+              "body": "Thanks for your purchase. Your payment has been received."
+            }

@@ -1,0 +1,129 @@
+asyncapi: 3.0.0
+info:
+  title: Support Workflow Events
+  version: 1.0.0
+  description: |
+    AsyncAPI definitions for support ticket flow using AMQP.
+    Covers user verification, ticket creation events, and ticket acknowledgment.
+
+defaultContentType: application/json
+
+servers:
+  amqpBroker:
+    host: rabbitmq.example.com
+    protocol: amqp
+    description: AMQP broker for support events
+    bindings:
+      amqp:
+        virtualHost: /
+        ssl: false
+
+channels:
+  support.users.verified:
+    address: support.users.verified
+    messages:
+      userVerified:
+        $ref: '#/components/messages/UserVerified'
+    description: Event emitted when a user verifies their email
+
+  support.tickets.created:
+    address: support.tickets.created
+    messages:
+      ticketCreated:
+        $ref: '#/components/messages/TicketCreated'
+    description: Event published when a support ticket is created
+
+  support.tickets.acknowledged:
+    address: support.tickets.acknowledged
+    messages:
+      ticketAck:
+        $ref: '#/components/messages/TicketAcknowledged'
+    description: Event received after internal team acknowledges the ticket
+
+operations:
+  receiveUserVerified:
+    action: receive
+    channel:
+      $ref: '#/channels/support.users.verified'
+    messages:
+      - $ref: '#/channels/support.users.verified/messages/userVerified'
+
+  sendTicketCreated:
+    action: send
+    channel:
+      $ref: '#/channels/support.tickets.created'
+    messages:
+      - $ref: '#/channels/support.tickets.created/messages/ticketCreated'
+
+  receiveTicketAcknowledged:
+    action: receive
+    channel:
+      $ref: '#/channels/support.tickets.acknowledged'
+    messages:
+      - $ref: '#/channels/support.tickets.acknowledged/messages/ticketAck'
+
+components:
+  messages:
+    UserVerified:
+      name: UserVerified
+      title: User Verified Event
+      summary: Indicates a user verified their email
+      contentType: application/json
+      headers:
+        type: object
+        properties:
+          correlationId:
+            type: string
+      payload:
+        type: object
+        properties:
+          email:
+            type: string
+            format: email
+          verifiedAt:
+            type: string
+            format: date-time
+
+    TicketCreated:
+      name: TicketCreated
+      title: Ticket Created Event
+      summary: Notification that a ticket has been created
+      contentType: application/json
+      headers:
+        type: object
+        properties:
+          correlationId:
+            type: string
+      payload:
+        type: object
+        properties:
+          ticketId:
+            type: string
+          email:
+            type: string
+          subject:
+            type: string
+          body:
+            type: string
+
+    TicketAcknowledged:
+      name: TicketAcknowledged
+      title: Ticket Acknowledged Event
+      summary: Indicates support team acknowledged the ticket
+      contentType: application/json
+      headers:
+        type: object
+        properties:
+          correlationId:
+            type: string
+      payload:
+        type: object
+        properties:
+          ticketId:
+            type: string
+          ticketQueueReference:
+            type: string
+          agentId:
+            type: string
+          etaMinutes:
+            type: integer

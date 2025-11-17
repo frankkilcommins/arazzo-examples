@@ -1,0 +1,74 @@
+arazzo: 1.1.0
+info:
+  title: Inventory Restock via JMS
+  version: 1.0.0
+  description: |
+    ### Workflow Overview
+
+    When inventory is low, a restock request is sent via JMS.
+    Upon confirmation, the local inventory is updated using OpenAPI.
+
+    1. Send JMS message to inventory.restock.queue
+    2. Wait for JMS confirmation on inventory.restocked.topic
+    3. Patch local inventory system via OpenAPI
+
+sourceDescriptions:
+  - name: InventoryApi
+    type: openapi
+    url: ./inventory-api.openapi.yaml
+  - name: InventoryEvents
+    type: asyncapi
+    url: ./inventory-jms.asyncapi.yaml
+
+workflows:
+  - workflowId: restockInventoryWorkflow
+    inputs:
+      required: [productId, restockAmount]
+      type: object
+      properties:
+        productId:
+          type: string
+        restockAmount:
+          type: integer
+
+    steps:
+      - kind: asyncapi
+        stepId: SendRestock
+        operationId: $sourceDescriptions.InventoryEvents.sendRestockRequest
+        action: send
+        requestBody:
+          contentType: application/json
+          payload: |
+            {
+              "productId": "{$inputs.productId}",
+              "restockAmount": {$inputs.restockAmount}
+            }
+
+      - kind: asyncapi
+        stepId: WaitForConfirmation
+        operationId: $sourceDescriptions.InventoryEvents.receiveRestockConfirmation
+        action: receive
+        correlationId: $inputs.productId
+        timeout: 10000
+        successCriteria:
+          - condition: $message.payload.status == "confirmed"
+        outputs:
+          confirmedAmount: $message.payload.confirmedAmount
+
+      - kind: openapi
+        stepId: UpdateInventory
+        operationId: $sourceDescriptions.InventoryApi.updateInventory
+        dependsOn:
+          - $steps.WaitForConfirmation
+        parameters:
+          - name: productId
+            in: path
+            value: $inputs.productId
+        requestBody:
+          contentType: application/json
+          payload: |
+            {
+              "quantity": {$steps.WaitForConfirmation.outputs.confirmedAmount}
+            }
+        successCriteria:
+          - condition: $statusCode == 200

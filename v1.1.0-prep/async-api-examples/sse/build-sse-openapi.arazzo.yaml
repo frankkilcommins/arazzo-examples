@@ -1,0 +1,79 @@
+arazzo: 1.1.0
+info:
+  title: SSE Build Notification Workflow (OpenAPI)
+  version: 1.0.0
+  description: |
+    ### Workflow Overview
+
+    This workflow uses OpenAPI endpoints to start a build and receive asynchronous updates via SSE.
+    It shows how Arazzo can handle `receive` semantics for OpenAPI-based streaming endpoints.
+
+    Steps:
+    1. Start the build via `POST /builds`
+    2. Wait for build result via `GET /builds/{buildId}/events` (SSE)
+    3. Notify the user by email (synchronous)
+
+sourceDescriptions:
+  - name: BuildApi
+    type: openapi
+    url: ./build-sse.openapi.yaml
+
+workflows:
+  - workflowId: startBuildWorkflow
+    inputs:
+      required: [repo, commit, notifyEmail]
+      type: object
+      properties:
+        repo:
+          type: string
+        commit:
+          type: string
+        notifyEmail:
+          type: string
+
+    steps:
+      - kind: openapi
+        stepId: StartBuild
+        operationId: $sourceDescriptions.BuildApi.startBuild
+        requestBody:
+          contentType: application/json
+          payload: |
+            {
+              "repo": "{$inputs.repo}",
+              "commit": "{$inputs.commit}"
+            }
+        successCriteria:
+          - condition: $statusCode == 202
+        outputs:
+          buildId: $response.body#/buildId
+
+      - kind: openapi
+        stepId: WaitForBuildEvents
+        operationId: $sourceDescriptions.BuildApi.streamBuildEvents
+        action: receive
+        parameters:
+          - name: buildId
+            in: path
+            value: $steps.StartBuild.outputs.buildId
+        timeout: 300000
+        successCriteria:
+          - condition: $message.payload.status == "success" || $message.payload.status == "failure"
+        outputs:
+          status: $message.payload.status
+
+      - kind: openapi
+        stepId: NotifyUser
+        operationId: $sourceDescriptions.BuildApi.sendNotification
+        dependsOn:
+        - $steps.WaitForBuildEvents
+        requestBody:
+          contentType: application/json
+          payload: |
+            {
+              "to": "{$inputs.notifyEmail}",
+              "subject": "Build Complete",
+              "body": "Build {$steps.StartBuild.outputs.buildId} finished with status: {$steps.WaitForBuildEvents.outputs.status}"
+            }
+        successCriteria:
+          - condition: $statusCode == 200
+          

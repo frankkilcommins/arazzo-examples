@@ -1,0 +1,119 @@
+openapi: 3.1.0
+info:
+  title: User Management and Support Email API
+  version: 1.1.0
+  description: |
+    This API allows support email intake, user management, and email notifications.
+
+tags:
+  - name: Support
+    description: Operations related to support ticket intake and email communication.
+  - name: Users
+    description: Operations related to user lookup and creation.
+
+paths:
+  /support-emails:
+    post:
+      tags: [Support]
+      operationId: submitSupportEmail
+      summary: Intake user-submitted support request via email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [from, subject, body]
+              properties:
+                from:
+                  type: string
+                  format: email
+                subject:
+                  type: string
+                body:
+                  type: string
+      responses:
+        '202':
+          description: Support request email received
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ticketReference: 
+                    type: string
+                    format: uuid
+
+  /users:
+    get:
+      tags: [Users]
+      operationId: getUserByEmail
+      summary: Get user by email
+      parameters:
+        - name: email
+          in: query
+          required: true
+          schema:
+            type: string
+            format: email
+      responses:
+        '200':
+          description: User found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  email:
+                    type: string
+        '404':
+          description: User not found
+    post:
+      tags: [Users]
+      operationId: createUser
+      summary: Create new user and trigger verification
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  format: email
+      responses:
+        '201':
+          description: User creation success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  userId:
+                    type: string
+                    format: uuid
+
+  /emails:
+    post:
+      tags: [Support]
+      operationId: sendEmail
+      summary: Send a follow-up email to the user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                to:
+                  type: string
+                subject:
+                  type: string
+                body:
+                  type: string
+      responses:
+        '200':
+          description: Email sent successfully

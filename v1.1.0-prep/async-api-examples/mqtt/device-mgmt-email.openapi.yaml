@@ -1,0 +1,104 @@
+openapi: 3.1.0
+info:
+  title: Device Management and Notification API
+  version: 1.0.0
+  description: |
+    This API allows for device lookup, registration, logging telemetry, and sending notification emails.
+
+paths:
+  /devices/{deviceId}:
+    get:
+      operationId: getDevice
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Device found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  model:
+                    type: string
+        '404':
+          description: Device not found
+
+  /devices:
+    post:
+      operationId: registerDevice
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                deviceId:
+                  type: string
+                model:
+                  type: string
+      responses:
+        '201':
+          description: Device registered
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+
+  /telemetry:
+    post:
+      operationId: logTelemetry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                deviceId:
+                  type: string
+                temperature:
+                  type: number
+                humidity:
+                  type: number
+                status:
+                  type: string
+                  enum: ["on", "off", "standby"]
+                registered:
+                  type: boolean
+                configStatus:
+                  type: string
+                  enum: ["unknown", "not-applied", "applied"]
+      responses:
+        '200':
+          description: Telemetry logged
+
+  /emails:
+    post:
+      operationId: sendEmail
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                to:
+                  type: string
+                subject:
+                  type: string
+                body:
+                  type: string
+      responses:
+        '200':
+          description: Email sent successfully

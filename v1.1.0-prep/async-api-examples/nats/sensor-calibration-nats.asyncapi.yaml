@@ -1,0 +1,84 @@
+asyncapi: 3.0.0
+info:
+  title: Sensor Calibration Events over NATS
+  version: 1.0.0
+  description: |
+    This AsyncAPI specification defines the calibration control and feedback
+    messages for sensors using NATS messaging protocol.
+
+defaultContentType: application/json
+
+servers:
+  natsBroker:
+    host: nats.example.com
+    protocol: nats
+    description: NATS broker for sensor calibration messaging
+
+channels:
+  sensorCalibrate:
+    address: sensors.{sensorId}.calibrate
+    parameters:
+      sensorId:
+        description: The ID of the sensor to calibrate
+        location: $message.payload#/sensorId
+    messages:
+      calibrationCommand:
+        $ref: '#/components/messages/calibrationCommand'
+
+  sensorCalibrated:
+    address: sensors.{sensorId}.calibrated
+    parameters:
+      sensorId:
+        description: The ID of the sensor being confirmed
+        location: $message.payload#/sensorId
+    messages:
+      calibrationResult:
+        $ref: '#/components/messages/calibrationResponse'
+
+operations:
+  sendCalibration:
+    action: send
+    channel:
+      $ref: '#/channels/sensorCalibrate'
+    messages:
+      - $ref: '#/channels/sensorCalibrate/messages/calibrationCommand'
+
+  receiveCalibration:
+    action: receive
+    channel:
+      $ref: '#/channels/sensorCalibrated'
+    messages:
+      - $ref: '#/channels/sensorCalibrated/messages/calibrationResult'
+
+components:
+  messages:
+    calibrationCommand:
+      name: calibrationCommand
+      title: Calibration Command
+      contentType: application/json
+      headers:
+        type: object
+        properties:
+          correlationId:
+            type: string
+      payload:
+        type: object
+        required: [sensorId, calibrationLevel]
+        properties:
+          sensorId:
+            type: string
+          calibrationLevel:
+            type: integer
+
+    calibrationResponse:
+      name: calibrationResponse
+      title: Calibration Result
+      contentType: application/json
+      payload:
+        type: object
+        required: [sensorId, status]
+        properties:
+          sensorId:
+            type: string
+          status:
+            type: string

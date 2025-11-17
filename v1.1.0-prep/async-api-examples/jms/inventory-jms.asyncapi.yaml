@@ -1,0 +1,62 @@
+asyncapi: 3.0.0
+info:
+  title: Inventory Messaging
+  version: 1.0.0
+  description: Messaging channels for inventory restock and confirmations.
+defaultContentType: application/json
+servers:
+  jmsServer:
+    host: inventory.messaging.local
+    protocol: jms
+    bindings:
+      jms:
+        destination: inventory-broker
+        destinationType: topic
+channels:
+  inventory.restock.queue:
+    address: inventory.restock.queue
+    messages:
+      restockRequest:
+        $ref: '#/components/messages/restockRequest'
+  inventory.restocked.topic:
+    address: inventory.restocked.topic
+    messages:
+      restockConfirmed:
+        $ref: '#/components/messages/restockConfirmed'
+operations:
+  sendRestockRequest:
+    action: send
+    channel:
+      $ref: '#/channels/inventory.restock.queue'
+    messages:
+      - $ref: '#/components/messages/restockRequest'
+  receiveRestockConfirmation:
+    action: receive
+    channel:
+      $ref: '#/channels/inventory.restocked.topic'
+    messages:
+      - $ref: '#/components/messages/restockConfirmed'
+components:
+  messages:
+    restockRequest:
+      name: restockRequest
+      title: Inventory Restock Request
+      payload:
+        type: object
+        properties:
+          productId:
+            type: string
+          restockAmount:
+            type: integer
+    restockConfirmed:
+      name: restockConfirmed
+      title: Restock Confirmation
+      payload:
+        type: object
+        properties:
+          productId:
+            type: string
+          confirmedAmount:
+            type: integer
+          status:
+            type: string

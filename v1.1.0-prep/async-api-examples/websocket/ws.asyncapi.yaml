@@ -1,0 +1,65 @@
+asyncapi: 3.0.0
+info:
+  title: WebSocket Chat API
+  version: 1.0.0
+  description: Chat application over WebSocket
+
+defaultContentType: application/json
+
+servers:
+  production:
+    host: chat.example.com
+    protocol: wss
+    protocolVersion: '13'
+
+channels:
+  chatMessage:
+    address: /chat/{roomId}
+    description: Send and receive messages in a chat room
+    parameters:
+      roomId:
+        description: The ID of the chat room
+        location: $message.payload#/roomId
+    messages:
+      message:
+        $ref: '#/components/messages/ChatMessage'
+
+operations:
+  sendMessage:
+    action: send
+    summary: Send a chat message to a room
+    channel:
+      $ref: '#/channels/chatMessage'
+    messages:
+      - $ref: '#/channels/chatMessage/messages/message'
+
+  receiveMessage:
+    action: receive
+    summary: Receive a chat message from a room
+    channel:
+      $ref: '#/channels/chatMessage'
+    messages:
+      - $ref: '#/channels/chatMessage/messages/message'
+
+components:
+  messages:
+    ChatMessage:
+      name: ChatMessage
+      title: Chat Message
+      summary: A message sent in a chat room
+      contentType: application/json
+      headers:
+        type: object
+        properties:
+          correlationId:
+            type: string
+            description: Used to correlate sent and received messages
+      payload:
+        type: object
+        properties:
+          roomId:
+            type: string
+          user:
+            type: string
+          message:
+            type: string

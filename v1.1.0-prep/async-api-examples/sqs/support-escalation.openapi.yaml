@@ -1,0 +1,71 @@
+openapi: 3.1.0
+info:
+  title: Support Escalation API
+  version: 1.0.0
+paths:
+  /support-tickets:
+    post:
+      operationId: createTicket
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                subject:
+                  type: string
+                description:
+                  type: string
+                priority:
+                  type: string
+      responses:
+        '201':
+          description: Ticket created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ticketId:
+                    type: string
+
+  /audit-log:
+    post:
+      operationId: logEscalation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                ticketId:
+                  type: string
+                priority:
+                  type: string
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: Escalation logged
+
+  /emails:
+    post:
+      operationId: notifySupervisor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                to:
+                  type: string
+                subject:
+                  type: string
+                body:
+                  type: string
+      responses:
+        '200':
+          description: Email sent

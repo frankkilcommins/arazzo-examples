@@ -1,0 +1,142 @@
+asyncapi: 3.0.0
+info:
+  title: User and Payment Events
+  version: 1.0.0
+  description: Events for user creation and payment related systems
+
+defaultContentType: application/json
+
+servers:
+  kafka:
+    host: kafka.example.com:9092
+    protocol: kafka
+
+channels:
+  usersCreated:
+    address: users.created
+    messages:
+      userEvent:
+        $ref: '#/components/messages/UserCreated'
+
+  usersAcknowledged:
+    address: users.acknowledged
+    messages:
+      ackEvent:
+        $ref: '#/components/messages/UserAcknowledged'
+
+  paymentsRequested:
+    address: payments.requested
+    messages:
+      paymentRequest:
+        $ref: '#/components/messages/PaymentRequested'
+
+  paymentsConfirmed:
+    address: payments.confirmed
+    messages:
+      paymentConfirm:
+        $ref: '#/components/messages/PaymentConfirmed'
+
+operations:
+  sendUserCreated:
+    action: send
+    channel:
+      $ref: '#/channels/usersCreated'
+    messages:
+      - $ref: '#/channels/usersCreated/messages/userEvent'
+
+  receiveUserAck:
+    action: receive
+    channel:
+      $ref: '#/channels/usersAcknowledged'
+    messages:
+      - $ref: '#/channels/usersAcknowledged/messages/ackEvent'
+
+  sendPaymentRequest:
+    action: send
+    channel:
+      $ref: '#/channels/paymentsRequested'
+    messages:
+      - $ref: '#/channels/paymentsRequested/messages/paymentRequest'
+
+  receivePaymentConfirm:
+    action: receive
+    channel:
+      $ref: '#/channels/paymentsConfirmed'
+    messages:
+      - $ref: '#/channels/paymentsConfirmed/messages/paymentConfirm'
+
+components:
+  messages:
+    UserCreated:
+      name: UserCreated
+      title: User Created Event
+      contentType: application/json
+      headers:
+        type: object
+        properties:
+          correlationId:
+            type: string
+      payload:
+        type: object
+        properties:
+          userId:
+            type: string
+          email:
+            type: string
+
+    UserAcknowledged:
+      name: UserAcknowledged
+      title: User Acknowledged Event
+      contentType: application/json
+      headers:
+        type: object
+        properties:
+          correlationId:
+            type: string
+      payload:
+        type: object
+        properties:
+          userId:
+            type: string
+          status:
+            type: string
+
+    PaymentRequested:
+      name: PaymentRequested
+      title: Payment Requested Event
+      contentType: application/json
+      headers:
+        type: object
+        properties:
+          correlationId:
+            type: string
+      payload:
+        type: object
+        properties:
+          userId:
+            type: string
+          productId:
+            type: string
+          amount:
+            type: number
+          orderId:
+            type: string            
+
+    PaymentConfirmed:
+      name: PaymentConfirmed
+      title: Payment Confirmed Event
+      contentType: application/json
+      headers:
+        type: object
+        properties:
+          correlationId:
+            type: string
+      payload:
+        type: object
+        properties:
+          userId:
+            type: string
+          status:
+            type: string
+          orderId:
+            type: string

@@ -1,0 +1,55 @@
+openapi: 3.1.0
+info:
+  title: Build Event Notification API (SSE via OpenAPI)
+  version: 1.0.0
+  description: |
+    Provides endpoints for triggering builds and streaming status updates via SSE.
+
+paths:
+  /builds:
+    post:
+      operationId: startBuild
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                repo:
+                  type: string
+                commit:
+                  type: string
+      responses:
+        '202':
+          description: Build started
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  buildId:
+                    type: string
+
+  /builds/{buildId}/events:
+    get:
+      operationId: streamBuildEvents
+      parameters:
+        - name: buildId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Stream of build status events
+          content:
+            text/event-stream:
+              schema:
+                type: object
+                properties:
+                  buildId:
+                    type: string
+                  status:
+                    type: string
+                    enum: [queued, building, success, failure]

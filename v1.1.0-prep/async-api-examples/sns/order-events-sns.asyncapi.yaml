@@ -1,0 +1,38 @@
+asyncapi: 3.0.0
+info:
+  title: Order Events via SNS
+  version: 1.0.0
+defaultContentType: application/json
+servers:
+  sns-broker:
+    host: sns.us-east-1.amazonaws.com
+    protocol: sns
+channels:
+  ordersPlaced:
+    address: orders.placed 
+    messages:
+      orderEvent:
+        $ref: '#/components/messages/OrderPlacedMessage'
+operations:
+  sendOrderPlaced:
+    action: send
+    channel:
+      $ref: '#/channels/ordersPlaced'
+    messages:
+      - $ref: '#/channels/ordersPlaced/messages/orderEvent'
+components:
+  messages:
+    OrderPlacedMessage:
+      name: OrderPlacedMessage
+      title: Order Placed Event
+      summary: Event triggered when a new order is created
+      contentType: application/json
+      payload:
+        type: object
+        properties:
+          orderId:
+            type: string
+          email:
+            type: string
+          total:
+            type: number

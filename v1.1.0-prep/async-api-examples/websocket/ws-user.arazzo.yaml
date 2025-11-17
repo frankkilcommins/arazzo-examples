@@ -1,0 +1,101 @@
+arazzo: 1.1.0
+info:
+  title: Spin up a live chat session with a user and send them a message
+  description: | 
+    Spin up a live chat session with a user. 
+    If the user does not exist then create the user account prior to initiating the chat.
+    Wait for a period of time to receive back a response.
+  version: 0.0.1
+
+sourceDescriptions:
+  - name: UserApi
+    type: openapi
+    url: ./user-mgmt.openapi.yaml
+  - name: ChatApi
+    type: asyncapi
+    url: ./ws.async.yaml
+
+workflows:
+  - workflowId: userChatFlow
+    inputs:
+      required: [name, message, roomId]
+      type: object
+      properties:
+        name:
+          type: string
+        message:
+          type: string
+        roomId:
+          type: string
+
+    steps:
+      - kind: openapi
+        stepId: GetUser
+        operationId: $sourceDescriptions.UserApi.getUserByName
+        parameters:
+          - name: name
+            in: query
+            value: $inputs.name
+        successCriteria:
+          - condition: $statusCode == 200
+        outputs:
+          userId: $response.body#/id
+        onFailure:
+          - condition: $statusCode == 404
+            type: goto
+            step: CreateUser
+        onSuccess:
+          - condition: $statusCode == 200
+            goto: SendChat
+
+
+      - kind: openapi
+        stepId: CreateUser
+        operationId: $sourceDescriptions.UserApi.createUser
+        requestBody:
+          contentType: application/json
+          payload: |
+            {
+              "name": "{$inputs.name}"
+            }
+        successCriteria:
+          - condition: $statusCode == 201
+        onSuccess:
+          - name: GetUserDetails
+            type: goto
+            stepId: GetUser
+            criteria: 
+              - condition: $statusCode == 201
+        outputs:
+          userId: $response.body#/id
+
+      - kind: asyncapi
+        stepId: SendChat
+        operationId: $sourceDescriptions.ChatApi.sendMessage
+        action: send
+        parameters:
+          - name: roomId
+            in: path
+            value: $inputs.roomId
+          - name: correlationId
+            in: header
+            value: $steps.GetUser.outputs.userId
+        requestBody:
+          contentType: application/json
+          payload: |
+            {
+              "roomId": "{$inputs.roomId}",
+              "user": "{$inputs.name}",
+              "message": "{$inputs.message}"
+            }
+
+      - kind: asyncapi
+        stepId: ReceiveChat
+        operationId: $sourceDescriptions.ChatApi.receiveMessage
+        action: receive
+        correlationId: $message.correlationId
+        timeout: 6000
+        successCriteria:
+          - condition: $message.payload != null
+        outputs:
+          receivedMessage: $message.payload.message

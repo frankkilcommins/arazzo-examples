@@ -1,0 +1,142 @@
+arazzo: 1.1.0
+info:
+  title: Remote Device Configuration Workflow
+  version: 1.0.0
+  description: |
+    ### Workflow Overview
+
+    This workflow configures a remote IoT device using MQTT and logs telemetry and notifications using OpenAPI endpoints.
+
+    1. **Check Device**  
+       Retrieve the device information from `/devices/{deviceId}`.
+
+    2. **Register Device (if not found)**  
+       If the device does not exist, register it via `POST /devices`.
+
+    3. **Send Configuration via MQTT**  
+       Publish a config command to `devices/{deviceId}/config`.
+
+    4. **Wait for Device Acknowledgment**  
+       Listen for acknowledgment on `devices/{deviceId}/ack`.
+
+    5. **Log Device Telemetry**  
+       Record a basic reading using `POST /telemetry`.
+
+    6. **Notify Operator**  
+       Send an email confirming configuration success.
+
+sourceDescriptions:
+  - name: DeviceApi
+    type: openapi
+    url: ./device-mgmt-email.openapi.yaml
+  - name: DeviceBus
+    type: asyncapi
+    url: ./device-config-mqtt.asyncapi.yaml
+
+workflows:
+  - workflowId: configureRemoteDevice
+    inputs:
+      required: [deviceId, mode, threshold, operatorEmail]
+      type: object
+      properties:
+        deviceId:
+          type: string
+        mode:
+          type: string
+        threshold:
+          type: number
+        operatorEmail:
+          type: string
+
+    steps:
+      - kind: openapi
+        stepId: GetDevice
+        operationId: $sourceDescriptions.DeviceApi.getDevice
+        parameters:
+          - name: deviceId
+            in: path
+            value: $inputs.deviceId
+        successCriteria:
+          - condition: $statusCode == 200
+        outputs:
+          model: $response.body#/model
+        onFailure:
+          - condition: $statusCode == 404
+            type: goto
+            stepId: RegisterDevice
+
+      - kind: openapi
+        stepId: RegisterDevice
+        operationId: $sourceDescriptions.DeviceApi.registerDevice
+        requestBody:
+          contentType: application/json
+          payload: |
+            {
+              "deviceId": "{$inputs.deviceId}",
+              "model": "generic-sensor"
+            }
+        successCriteria:
+          - condition: $statusCode == 201
+        onSuccess:
+          - condition: $statusCode == 201
+            type: goto
+            stepId: GetDevice
+
+      - kind: asyncapi
+        stepId: SendConfig
+        operationId: $sourceDescriptions.DeviceBus.sendDeviceConfig
+        action: send
+        parameters:
+          - name: deviceId
+            in: path
+            value: $inputs.deviceId
+          - name: correlationId
+            in: header
+            value: $inputs.deviceId
+        requestBody:
+          contentType: application/json
+          payload: |
+            {
+              "deviceId": "{$inputs.deviceId}",
+              "mode": "{$inputs.mode}",
+              "threshold": {$inputs.threshold}
+            }
+
+      - kind: asyncapi
+        stepId: WaitForAck
+        operationId: $sourceDescriptions.DeviceBus.receiveDeviceAck
+        action: receive
+        correlationId: $inputs.deviceId
+        timeout: 10000
+        successCriteria:
+          - condition: $message.payload.status == "applied"
+        outputs:
+          configStatus: $message.payload.status
+
+      - kind: openapi
+        stepId: LogTelemetry
+        operationId: $sourceDescriptions.DeviceApi.logTelemetry
+        dependsOn:
+          - $steps.WaitForAck
+        requestBody:
+          contentType: application/json
+          payload: |
+            {
+              "deviceId": "{$inputs.deviceId}",
+              "registered": true,
+              "configStatus": $steps.WaitForAck.outputs.configStatus
+            }
+        successCriteria:
+          - condition: $statusCode == 200
+
+      - kind: openapi
+        stepId: SendNotification
+        operationId: $sourceDescriptions.DeviceApi.sendEmail
+        requestBody:
+          contentType: application/json
+          payload: |
+            {
+              "to": "{$inputs.operatorEmail}",
+              "subject": "Device Configuration Complete",
+              "body": "Device {$inputs.deviceId} has been successfully configured with mode '{$inputs.mode}' and threshold {$inputs.threshold}. It's configStatus is '{$steps.WaitForAck.configStatus}'"
+            }

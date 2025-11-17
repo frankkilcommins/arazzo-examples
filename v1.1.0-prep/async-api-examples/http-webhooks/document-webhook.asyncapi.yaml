@@ -1,0 +1,48 @@
+asyncapi: 3.0.0
+info:
+  title: Document Signing Webhook (AsyncAPI)
+  version: 1.0.0
+  description: This AsyncAPI document models the document signed webhook as an outbound HTTP request.
+
+defaultContentType: application/json
+
+servers:
+  webhook-server:
+    host: api.signing-system.com
+    protocol: http
+    description: Outbound webhook server
+
+channels:
+  documentSigned:
+    address: /documentSigned
+    messages:
+      documentSignedMessage:
+        $ref: '#/components/messages/DocumentSigned'
+
+operations:
+  documentSigned:
+    action: receive
+    channel:
+      $ref: '#/channels/documentSigned'
+    summary: Get notified when document is signed
+    messages:
+      - $ref: '#/channels/documentSigned/messages/documentSignedMessage'
+
+components:
+  messages:
+    DocumentSigned:
+      name: DocumentSigned
+      title: Document Signed Webhook
+      summary: Notification that a document has been signed
+      contentType: application/json
+      payload:
+        type: object
+        required:
+          - documentId
+          - status
+        properties:
+          documentId:
+            type: string
+          status:
+            type: string
+            enum: [signed]

@@ -1,0 +1,73 @@
+openapi: 3.1.0
+info:
+  title: User Management and Email API
+  version: 1.0.0
+  description: |
+    This API allows user lookup, user creation, and sending emails.
+
+paths:
+  /users:
+    get:
+      operationId: getUserByEmail
+      parameters:
+        - name: email
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: User found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  email:
+                    type: string
+        '404':
+          description: User not found
+    post:
+      operationId: createUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+      responses:
+        '202':
+          description: User creation accepted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  correlationId:
+                    type: string
+                    format: uuid
+
+  /emails:
+    post:
+      operationId: sendEmail
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                to:
+                  type: string
+                subject:
+                  type: string
+                body:
+                  type: string
+      responses:
+        '200':
+          description: Email sent successfully

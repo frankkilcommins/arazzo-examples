@@ -1,0 +1,73 @@
+arazzo: 1.1.0
+info:
+  title: Order Confirmation via SNS Workflow
+  version: 1.0.0
+  description: |
+    ### Workflow Overview
+
+    This workflow demonstrates a simple flow combining OpenAPI and SNS (via AsyncAPI):
+    1. Create an order via OpenAPI
+    2. Publish an `orders.placed` event to SNS
+    3. Send a confirmation email to the customer
+
+sourceDescriptions:
+  - name: OrderApi
+    type: openapi
+    url: ./order-api.openapi.yaml
+  - name: OrderEvents
+    type: asyncapi
+    url: ./order-events-sns.asyncapi.yaml
+
+workflows:
+  - workflowId: placeOrderFlow
+    inputs:
+      required: [email, total]
+      type: object
+      properties:
+        email:
+          type: string
+        total:
+          type: number
+
+    steps:
+      - kind: openapi
+        stepId: CreateOrder
+        operationId: $sourceDescriptions.OrderApi.createOrder
+        requestBody:
+          contentType: application/json
+          payload: |
+            {
+              "email": "{$inputs.email}",
+              "total": {$inputs.total}
+            }
+        successCriteria:
+          - condition: $statusCode == 201
+        outputs:
+          orderId: $response.body#/orderId
+
+      - kind: asyncapi
+        stepId: NotifySNS
+        operationId: $sourceDescriptions.OrderEvents.sendOrderPlaced
+        action: send
+        requestBody:
+          contentType: application/json
+          payload: |
+            {
+              "orderId": "{$steps.CreateOrder.outputs.orderId}",
+              "email": "{$inputs.email}",
+              "total": {$inputs.total}
+            }
+
+      - kind: openapi
+        stepId: SendConfirmationEmail
+        operationId: $sourceDescriptions.OrderApi.sendConfirmationEmail
+        requestBody:
+          contentType: application/json
+          payload: |
+            {
+              "to": "{$inputs.email}",
+              "subject": "Order Confirmation",
+              "body": "Thank you for your order {$steps.CreateOrder.outputs.orderId}. Total: {$inputs.total}"
+            }
+        successCriteria:
+          - $statusCode == 200

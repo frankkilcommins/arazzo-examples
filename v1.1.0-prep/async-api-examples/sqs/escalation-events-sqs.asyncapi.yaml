@@ -1,0 +1,39 @@
+asyncapi: 3.0.0
+info:
+  title: Escalation Events via SQS
+  version: 1.0.0
+defaultContentType: application/json
+servers:
+  sqs-escalation:
+    host: sqs.us-east-1.amazonaws.com
+    protocol: sqs
+    description: SQS queue for ticket escalations
+channels:
+  escalatedTickets:
+    address: escalated-tickets
+    messages:
+      escalationMessage:
+        $ref: '#/components/messages/TicketEscalated'
+operations:
+  receiveEscalation:
+    action: receive
+    channel:
+      $ref: '#/channels/escalatedTickets'
+    messages:
+      - $ref: '#/channels/escalatedTickets/messages/escalationMessage'
+components:
+  messages:
+    TicketEscalated:
+      name: TicketEscalated
+      title: Escalated Ticket Message
+      summary: Triggered when a ticket is escalated
+      contentType: application/json
+      payload:
+        type: object
+        properties:
+          ticketId:
+            type: string
+          priority:
+            type: string
+          reason:
+            type: string

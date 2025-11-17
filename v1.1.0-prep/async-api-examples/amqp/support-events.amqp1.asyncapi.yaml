@@ -1,0 +1,110 @@
+asyncapi: 3.0.0
+info:
+  title: Support Ticket Events (AMQP 1.0)
+  version: 1.0.0
+  description: |
+    This AsyncAPI document describes support event exchanges over AMQP 1.0:
+    - support.users.verified (receive)
+    - support.tickets.created (send)
+    - support.tickets.acknowledged (receive)
+
+defaultContentType: application/json
+
+servers:
+  amqp1Broker:
+    host: amqp1.support.example.com
+    protocol: amqp1
+    description: AMQP 1.0 broker for support event messaging
+
+channels:
+  supportUserVerified:
+    address: support.users.verified
+    messages:
+      verifiedUser:
+        $ref: '#/components/messages/verifiedUser'
+
+  supportTicketCreated:
+    address: support.tickets.created
+    messages:
+      createdTicket:
+        $ref: '#/components/messages/ticketCreated'
+
+  supportTicketAcknowledged:
+    address: support.tickets.acknowledged
+    messages:
+      acknowledgedTicket:
+        $ref: '#/components/messages/ticketAcknowledged'
+
+operations:
+  receiveUserVerified:
+    action: receive
+    channel:
+      $ref: '#/channels/supportUserVerified'
+    messages:
+      - $ref: '#/channels/supportUserVerified/messages/verifiedUser'
+
+  sendTicketCreated:
+    action: send
+    channel:
+      $ref: '#/channels/supportTicketCreated'
+    messages:
+      - $ref: '#/channels/supportTicketCreated/messages/createdTicket'
+
+  receiveTicketAcknowledged:
+    action: receive
+    channel:
+      $ref: '#/channels/supportTicketAcknowledged'
+    messages:
+      - $ref: '#/channels/supportTicketAcknowledged/messages/acknowledgedTicket'
+
+components:
+  messages:
+    verifiedUser:
+      name: verifiedUser
+      title: Verified User Message
+      contentType: application/json
+      payload:
+        type: object
+        required: [email]
+        properties:
+          email:
+            type: string
+
+    ticketCreated:
+      name: ticketCreated
+      title: Ticket Created Message
+      contentType: application/json
+      headers:
+        type: object
+        properties:
+          correlationId:
+            type: string
+      payload:
+        type: object
+        required: [ticketId, email, subject, body]
+        properties:
+          ticketId:
+            type: string
+          email:
+            type: string
+          subject:
+            type: string
+          body:
+            type: string
+
+    ticketAcknowledged:
+      name: ticketAcknowledged
+      title: Ticket Acknowledged Message
+      contentType: application/json
+      payload:
+        type: object
+        required: [ticketQueueReference, agentId, etaMinutes, ticketId]
+        properties:
+          ticketQueueReference:
+            type: string
+          agentId:
+            type: string
+          etaMinutes:
+            type: integer
+          ticketId:
+            type: string

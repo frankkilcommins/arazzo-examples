@@ -1,0 +1,85 @@
+asyncapi: 3.0.0
+info:
+  title: Device Configuration over MQTT
+  version: 1.0.0
+  description: |
+    Defines MQTT topics for sending configuration commands to devices and receiving acknowledgments.
+
+defaultContentType: application/json
+
+servers:
+  mqttBroker:
+    host: mqtt.example.com
+    protocol: mqtt
+    description: Public MQTT broker for device communication
+
+channels:
+  deviceConfig:
+    address: devices/{deviceId}/config
+    parameters:
+      deviceId:
+        description: The target device ID
+        location: $message.payload#/deviceId
+    messages:
+      configMessage:
+        $ref: '#/components/messages/deviceConfigCommand'
+
+  deviceAck:
+    address: devices/{deviceId}/ack
+    parameters:
+      deviceId:
+        description: The target device ID
+        location: $message.payload#/deviceId
+    messages:
+      ackMessage:
+        $ref: '#/components/messages/deviceAckResponse'
+
+operations:
+  sendDeviceConfig:
+    action: send
+    channel:
+      $ref: '#/channels/deviceConfig'
+    messages:
+      - $ref: '#/channels/deviceConfig/messages/configMessage'
+
+  receiveDeviceAck:
+    action: receive
+    channel:
+      $ref: '#/channels/deviceAck'
+    messages:
+      - $ref: '#/channels/deviceAck/messages/ackMessage'
+
+components:
+  messages:
+    deviceConfigCommand:
+      name: deviceConfigCommand
+      title: Configuration Command
+      contentType: application/json
+      headers:
+        type: object
+        properties:
+          correlationId:
+            type: string
+      payload:
+        type: object
+        required: [deviceId, mode, threshold]
+        properties:
+          deviceId:
+            type: string
+          mode:
+            type: string
+          threshold:
+            type: number
+
+    deviceAckResponse:
+      name: deviceAckResponse
+      title: Acknowledgment
+      contentType: application/json
+      payload:
+        type: object
+        required: [deviceId, status]
+        properties:
+          deviceId:
+            type: string
+          status:
+            type: string

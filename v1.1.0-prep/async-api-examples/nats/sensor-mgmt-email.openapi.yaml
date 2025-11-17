@@ -1,0 +1,70 @@
+openapi: 3.1.0
+info:
+  title: Sensor Management and Notification API
+  version: 1.0.0
+  description: |
+    This API allows checking and registering sensors, as well as notifying technicians of calibration results.
+
+paths:
+  /sensors/{sensorId}:
+    get:
+      operationId: getSensor
+      parameters:
+        - name: sensorId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Sensor found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  type:
+                    type: string
+        '404':
+          description: Sensor not found
+
+  /sensors:
+    post:
+      operationId: registerSensor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sensorId, type]
+              properties:
+                sensorId:
+                  type: string
+                type:
+                  type: string
+      responses:
+        '201':
+          description: Sensor created
+
+  /emails:
+    post:
+      operationId: sendEmail
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                to:
+                  type: string
+                subject:
+                  type: string
+                body:
+                  type: string
+      responses:
+        '200':
+          description: Email sent successfully

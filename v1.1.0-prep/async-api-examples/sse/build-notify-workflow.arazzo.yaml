@@ -1,0 +1,77 @@
+arazzo: 1.1.0
+info:
+  title: Build Completion Notification Workflow
+  version: 1.0.0
+  description: |
+    ### Workflow Overview
+    This workflow triggers a build process and waits for its completion via SSE.
+    Once the build completes, a notification is sent to the user.
+
+    Steps:
+    1. Start the build using OpenAPI.
+    2. Wait for build success/failure via SSE.
+    3. Notify user of the result.
+
+sourceDescriptions:
+  - name: BuildApi
+    type: openapi
+    url: ./build-notify.openapi.yaml
+  - name: BuildEvents
+    type: asyncapi
+    url: ./build-events-sse.asyncapi.yaml
+
+workflows:
+  - workflowId: buildNotifyFlow
+    inputs:
+      required: [repoUrl, branch, email]
+      type: object
+      properties:
+        repoUrl:
+          type: string
+        branch:
+          type: string
+        email:
+          type: string
+
+    steps:
+      - kind: openapi
+        stepId: StartBuild
+        operationId: $sourceDescriptions.BuildApi.startBuild
+        requestBody:
+          contentType: application/json
+          payload: |
+            {
+              "repoUrl": "{$inputs.repoUrl}",
+              "branch": "{$inputs.branch}"
+            }
+        successCriteria:
+          - condition: $statusCode == 202
+        outputs:
+          buildId: $response.body#/buildId
+
+      - kind: asyncapi
+        stepId: WaitForBuildResult
+        operationId: $sourceDescriptions.BuildEvents.receiveBuildUpdate
+        action: receive
+        correlationId: $steps.StartBuild.outputs.buildId
+        timeout: 300000
+        successCriteria:
+          - condition: $message.payload.status == "success" || $message.payload.status == "failure"
+        outputs:
+          result: $message.payload.status
+
+      - kind: openapi
+        stepId: NotifyUser
+        operationId: $sourceDescriptions.BuildApi.notifyUser
+        dependsOn:
+          - $steps.WaitForBuildResult
+        requestBody:
+          contentType: application/json
+          payload: |
+            {
+              "email": "{$inputs.email}",
+              "subject": "Build Completed - {$steps.WaitForBuildResult.outputs.result}",
+              "message": "The build for {$inputs.repoUrl} on branch {$inputs.branch} has completed with status: {$steps.WaitForBuildResult.outputs.result}"
+            }
+        successCriteria:
+          - condition: $statusCode == 200

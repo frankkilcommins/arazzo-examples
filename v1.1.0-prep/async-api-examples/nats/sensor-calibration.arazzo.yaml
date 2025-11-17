@@ -1,0 +1,123 @@
+arazzo: 1.1.0
+info:
+  title: Sensor Calibration Workflow with NATS
+  version: 1.0.0
+  description: |
+    ### Workflow Overview
+
+    This workflow ensures a sensor is registered, sends a calibration command via NATS,
+    waits for a confirmation, and then notifies a technician via email.
+
+    1. **Check Sensor**  
+       Query sensor details using `GET /sensors/{sensorId}`.
+
+    2. **Register Sensor (if not found)**  
+       Register a new sensor using `POST /sensors`.
+
+    3. **Send Calibration Command**  
+       Send a calibration message to `sensors.{sensorId}.calibrate`.
+
+    4. **Wait for Calibration Result**  
+       Wait for a confirmation event on `sensors.{sensorId}.calibrated`.
+
+    5. **Notify Technician**  
+       Send an email confirming calibration completion.
+
+sourceDescriptions:
+  - name: SensorApi
+    type: openapi
+    url: ./sensor-mgmt-email.openapi.yaml
+  - name: SensorEvents
+    type: asyncapi
+    url: ./sensor-calibration-nats.asyncapi.yaml
+
+workflows:
+  - workflowId: calibrateSensor
+    inputs:
+      required: [sensorId, calibrationLevel, technicianEmail]
+      type: object
+      properties:
+        sensorId:
+          type: string
+        calibrationLevel:
+          type: integer
+        technicianEmail:
+          type: string
+
+    steps:
+      - kind: openapi
+        stepId: GetSensor
+        operationId: $sourceDescriptions.SensorApi.getSensor
+        parameters:
+          - name: sensorId
+            in: path
+            value: $inputs.sensorId
+        successCriteria:
+          - condition: $statusCode == 200
+        outputs:
+          sensorType: $response.body#/type
+        onFailure:
+          - condition: $statusCode == 404
+            type: goto
+            stepId: RegisterSensor
+
+      - kind: openapi
+        stepId: RegisterSensor
+        operationId: $sourceDescriptions.SensorApi.registerSensor
+        requestBody:
+          contentType: application/json
+          payload: |
+            {
+              "sensorId": "{$inputs.sensorId}",
+              "type": "generic"
+            }
+        successCriteria:
+          - condition: $statusCode == 201
+        onSuccess:
+          - condition: $statusCode == 201
+            type: goto
+            stepId: GetSensor
+
+      - kind: asyncapi
+        stepId: SendCalibration
+        operationId: $sourceDescriptions.SensorEvents.sendCalibration
+        action: send
+        parameters:
+          - name: sensorId
+            in: path
+            value: $inputs.sensorId
+          - name: correlationId
+            in: header
+            value: $inputs.sensorId
+        requestBody:
+          contentType: application/json
+          payload: |
+            {
+              "sensorId": "{$inputs.sensorId}",
+              "calibrationLevel": {$inputs.calibrationLevel}
+            }
+
+      - kind: asyncapi
+        stepId: WaitForCalibration
+        operationId: $sourceDescriptions.SensorEvents.receiveCalibration
+        action: receive
+        correlationId: $inputs.sensorId
+        timeout: 8000
+        successCriteria:
+          - condition: $message.payload.status == "calibrated"
+        outputs:
+          calibrationStatus: $message.payload.status
+
+      - kind: openapi
+        stepId: SendNotification
+        operationId: $sourceDescriptions.SensorApi.sendEmail
+        dependsOn:
+          - $steps.WaitForCalibration
+        requestBody:
+          contentType: application/json
+          payload: |
+            {
+              "to": "{$inputs.technicianEmail}",
+              "subject": "Calibration Complete",
+              "body": "Sensor {$inputs.sensorId} calibration completed with status '{$steps.WaitForCalibration.outputs.calibrationStatus}'."
+            }

@@ -1,0 +1,168 @@
+arazzo: 1.1.0
+info:
+  title: Support Ticket Workflow with Email Verification
+  version: 1.0.0
+  description: |
+    ### Workflow Overview
+
+    This workflow orchestrates the intake and processing of a user-submitted support request, combining synchronous (OpenAPI) and asynchronous (AMQP) interactions:
+
+    1. **Submit Support Email**  
+      The user submits a support request via the `/support-emails` endpoint.
+
+    2. **Check for Existing User**  
+      The system checks if a user account exists using `GET /users?email=...`.
+
+    3. **Create User (if needed)**  
+      If the user is not found, a new user is created using `POST /users`.  
+      A correlation ID is returned for tracking email verification.
+
+    4. **Wait for Email Verification Event**  
+      The system waits for an async event on the `support.users.verified` topic to confirm email verification.
+
+    5. **Create Support Ticket**  
+      Once verified, a support ticket is created via `POST /support-tickets`.
+
+    6. **Send Ticket Created Event**  
+      An AMQP message is sent to the `support.tickets.created` topic with ticket details.
+
+    7. **Wait for Ticket Acknowledgment**  
+      The workflow pauses until it receives a `support.tickets.acknowledged` message, indicating an agent has picked up the ticket.
+
+    8. **Send Follow-Up Email to User**  
+      A confirmation email is sent to the user including agent and estimated wait time.
+
+
+sourceDescriptions:
+  - name: SupportApi
+    type: openapi
+    url: ./support-users-verified.openapi.yaml
+  - name: SupportEvents
+    type: asyncapi
+    url: ./support-events.amqp.asyncapi.yaml
+
+workflows:
+  - workflowId: verifyAndCreateSupportTicket
+    inputs:
+      required: [email, subject, body]
+      type: object
+      properties:
+        email:
+          type: string
+        subject:
+          type: string
+        body:
+          type: string
+
+    steps:
+      - kind: openapi
+        stepId: SubmitSupportEmail
+        operationId: $sourceDescriptions.SupportApi.submitSupportEmail
+        requestBody:
+          contentType: application/json
+          payload: |
+            {
+              "from": "{$inputs.email}",
+              "subject": "{$inputs.subject}",
+              "body": "{$inputs.body}"
+            }
+        successCriteria:
+          - condition: $statusCode == 202
+        outputs:
+          ticketId: $response.body#/ticketReference
+
+      - kind: openapi
+        stepId: CheckUser
+        operationId: $sourceDescriptions.SupportApi.getUserByEmail
+        parameters:
+          - name: email
+            in: query
+            value: $inputs.email
+        successCriteria:
+          - condition: $statusCode == 200
+        outputs:
+          userId: $response.body#/id
+        onFailure:
+          - condition: $statusCode == 404
+            type: goto
+            stepId: CreateUser
+          - condition: $statusCode == 500
+            type: end      
+        onSuccess:
+          - condition: $statusCode == 200
+            type: goto
+            stepId: WaitForVerification
+
+      - kind: openapi
+        stepId: CreateUser
+        operationId: $sourceDescriptions.SupportApi.createUser
+        requestBody:
+          contentType: application/json
+          payload: |
+            {
+              "email": "{$inputs.email}"
+            }
+        successCriteria:
+          - condition: $statusCode == 201
+        onSuccess:
+          - condition: $statusCode == 201
+            type: goto
+            stepId: CheckUser
+
+      - kind: asyncapi
+        stepId: WaitForVerification
+        operationId: $sourceDescriptions.SupportEvents.receiveUserVerified
+        action: receive
+        correlationId: $steps.CheckUser.outputs.userId
+        timeout: 10000
+        successCriteria:
+          - condition: $message.payload.email == "{$inputs.email}"
+
+      - kind: asyncapi
+        stepId: SendVerifiedTicketEvent
+        operationId: $sourceDescriptions.SupportEvents.sendTicketCreated
+        dependsOn:
+          - $steps.WaitForVerification
+        action: send
+        parameters:
+          - name: correlationId
+            in: header
+            value: $steps.SubmitSupportEmail.outputs.ticketId
+        requestBody:
+          contentType: application/json
+          payload: |
+            {
+              "ticketId": "{$steps.CreateTicket.outputs.ticketId}",
+              "email": "{$inputs.email}",
+              "subject": "{$inputs.subject}",
+              "body": "{$inputs.body}"
+            }
+
+      - kind: asyncapi
+        stepId: WaitForAck
+        operationId: $sourceDescriptions.SupportEvents.receiveTicketAcknowledged
+        action: receive
+        correlationId: $steps.SubmitSupportEmail.outputs.ticketId
+        timeout: 15000
+        successCriteria:
+          - condition: $message.payload.ticketQueueReference == "{$steps.SubmitSupportEmail.outputs.ticketId}"
+        outputs:
+          agentId: $message.payload.agentId
+          etaMinutes: $message.payload.etaMinutes
+          realTicketId: $message.payload.ticketId
+
+      - kind: openapi
+        stepId: SendFollowupEmail
+        operationId: $sourceDescriptions.SupportApi.sendEmail
+        dependsOn:
+          - $steps.WaitForAck
+        requestBody:
+          contentType: application/json
+          payload: |
+            {
+              "to": "{$inputs.email}",
+              "subject": "Support ticket acknowledged",
+              "body": "Your ticket has been received and will be handled by agent {$steps.WaitForAck.outputs.agentId} in approximately {$steps.WaitForAck.outputs.etaMinutes} minutes. Please use ticket #{$steps.WaitForAck.outputs.realTicketId} in future correspondance."
+            }
+        successCriteria:
+         - condition: $statusCode == 200

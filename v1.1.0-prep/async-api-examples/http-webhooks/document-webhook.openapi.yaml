@@ -1,0 +1,29 @@
+openapi: 3.1.0
+info:
+  title: Document Signing Webhook API
+  version: 1.0.0
+  description: |
+    Webhook endpoint that will be called when a document is signed externally.
+    This webhook is defined using the OpenAPI 3.1 `webhooks` field.
+
+webhooks:
+  documentSigned:
+    post:
+      summary: Document signed notification
+      operationId: documentSignedWebhook
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [documentId, status]
+              properties:
+                documentId:
+                  type: string
+                status:
+                  type: string
+                  enum: [signed]
+      responses:
+        '200':
+          description: Acknowledged receipt of signed document webhook

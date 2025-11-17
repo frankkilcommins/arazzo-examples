@@ -1,0 +1,42 @@
+asyncapi: 3.0.0
+info:
+  title: Build Events Stream
+  version: 1.0.0
+  description: |
+    SSE stream for build status updates.
+defaultContentType: text/event-stream
+servers:
+  sse-server:
+    host: build.example.com
+    protocol: http
+channels:
+  build-events:
+    address: /build-events/{buildId}
+    parameters:
+      buildId:
+        description: ID of the build process.
+        location: $message.payload#/buildId
+    messages:
+      buildUpdate:
+        $ref: '#/components/messages/BuildStatusMessage'
+operations:
+  receiveBuildUpdate:
+    action: receive
+    channel:
+      $ref: '#/channels/build-events'
+    messages:
+      - $ref: '#/channels/build-events/messages/buildUpdate'
+components:
+  messages:
+    BuildStatusMessage:
+      name: BuildStatusMessage
+      title: Build Status
+      contentType: text/event-stream
+      payload:
+        type: object
+        properties:
+          buildId:
+            type: string
+          status:
+            type: string
+            enum: [queued, building, success, failure]
