@@ -16,13 +16,13 @@ These examples are intended to validate protocol-level fit, discover modeling pa
 
 | Protocol                                                       | `send` | `receive` | Arazzo Fit    | Notes                                                                |
 | -------------------------------------------------------------- | ------ | --------- | ------------- | -------------------------------------------------------------------- |
-| [**Kafka**](./v1.1.0-prep/async-api-examples/kafka/)           | ✅      | ✅         | ✅ Recommended | Well-supported pub-sub; structured JSON or binary payloads possible. |
-| [**AMQP**](./v1.1.0-prep/async-api-examples/amqp/)             | ✅      | ✅         | ✅ Recommended | Strong JSON alignment via RabbitMQ; works well with events.          |
-| [**MQTT / MQTT 5**](./v1.1.0-prep/async-api-examples/mqtt/)    | ✅      | ✅         | ✅ Recommended | Great for lightweight telemetry and IoT messaging.                   |
-| [**NATS**](./v1.1.0-prep/async-api-examples/nats/)             | ✅      | ✅         | ✅ Recommended | Simple and fast messaging with subject routing.                      |
-| [**WebSocket**](./v1.1.0-prep/async-api-examples/websocket/)   | ✅      | ✅         | ✅ Recommended | Bi-directional real-time channels; suited for chat, UX events.       |
-| [**HTTP (webhooks)**](v1.1.0-prep/async-api-examples/http-webhooks/) | ❌ (*)      | ✅         | ✅ Recommended | Receive-only event triggers; modeled using AsyncAPI or OpenAPI. In Arazzo, send can be used when the workflow acts as the webhook client (e.g. issuing a POST to an external webhook URL).      |
-| [**SNS**](./v1.1.0-prep/async-api-examples/sns/)               | ✅      | ✅         | ✅ Recommended | Supports send and receive; receive typically via subscriber integration (e.g. SQS, Lambda) |
+| [**Kafka**](./v1.1.0-prep/async-api-examples/kafka/)           | ✅      | ✅         | ✅ | Well-supported pub-sub; structured JSON or binary payloads possible. |
+| [**AMQP**](./v1.1.0-prep/async-api-examples/amqp/)             | ✅      | ✅         | ✅ | Strong JSON alignment via RabbitMQ; works well with events.          |
+| [**MQTT / MQTT 5**](./v1.1.0-prep/async-api-examples/mqtt/)    | ✅      | ✅         | ✅ | Great for lightweight telemetry and IoT messaging.                   |
+| [**NATS**](./v1.1.0-prep/async-api-examples/nats/)             | ✅      | ✅         | ✅ | Simple and fast messaging with subject routing.                      |
+| [**WebSocket**](./v1.1.0-prep/async-api-examples/websocket/)   | ✅      | ✅         | ✅ | Bi-directional real-time channels; suited for chat, UX events.       |
+| [**HTTP (webhooks)**](v1.1.0-prep/async-api-examples/http-webhooks/) | ❌ (*)      | ✅         | ✅ | Receive-only event triggers; modeled using AsyncAPI or OpenAPI. In Arazzo, send can be used when the workflow acts as the webhook client (e.g. issuing a POST to an external webhook URL).      |
+| [**SNS**](./v1.1.0-prep/async-api-examples/sns/)               | ✅      | ✅         | ✅ | Supports send and receive; receive typically via subscriber integration (e.g. SQS, Lambda) |
 | [**SQS**](./v1.1.0-prep/async-api-examples/sqs/)               | ✅      | ✅         | ⚠️ Partial     | Supports send and receive; receive typically via polling. Commonly paired with SNS.              |
 | [**SSE**](./v1.1.0-prep/async-api-examples/sse/)             | ❌      | ✅         | ⚠️ Partial     | One-way streaming from server to client over HTTP.                   |
 
@@ -38,7 +38,6 @@ Recommendation would be to consider based on community feedback or vendor extens
 
 | Protocol                     | `send` | `receive` | Arazzo Fit | Notes                                                         |
 | ---------------------------- | ------ | --------- | ---------- | ------------------------------------------------------------- |
-| **HTTP (polling)**           | ✅      | ✅         | ⚠️ Limited | Requires repeat logic; better modeled via OpenAPI or retries. |
 | **STOMP**                    | ✅      | ✅         | ⚠️ Partial | Text-based protocol; JSON support varies.                     |
 | **Solace**                   | ✅      | ✅         | ⚠️ Partial | Proprietary brokers; support varies by use.                   |
 | **Redis Pub/Sub**            | ✅      | ✅         | ⚠️ Partial | Requires runtime normalization for selector support.          |
