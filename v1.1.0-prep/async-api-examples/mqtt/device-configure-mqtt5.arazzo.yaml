@@ -26,10 +26,10 @@ info:
        Send an email confirming configuration success.
 
 sourceDescriptions:
-  - name: DeviceApi
+  - name: DeviceOpenApi
     type: openapi
     url: ./device-mgmt-email.openapi.yaml
-  - name: DeviceBus
+  - name: AsyncAPIDeviceBus
     type: asyncapi
     url: ./device-config-mqtt.asyncapi.yaml
 
@@ -49,9 +49,8 @@ workflows:
           type: string
 
     steps:
-      - kind: openapi
-        stepId: GetDevice
-        operationId: $sourceDescriptions.DeviceApi.getDevice
+      - stepId: GetDevice
+        operationId: $sourceDescriptions.DeviceOpenApi.getDevice
         parameters:
           - name: deviceId
             in: path
@@ -65,9 +64,8 @@ workflows:
             type: goto
             stepId: RegisterDevice
 
-      - kind: openapi
-        stepId: RegisterDevice
-        operationId: $sourceDescriptions.DeviceApi.registerDevice
+      - stepId: RegisterDevice
+        operationId: $sourceDescriptions.DeviceOpenApi.registerDevice
         requestBody:
           contentType: application/json
           payload: |
@@ -82,9 +80,8 @@ workflows:
             type: goto
             stepId: GetDevice
 
-      - kind: asyncapi
-        stepId: SendConfig
-        operationId: $sourceDescriptions.DeviceBus.sendDeviceConfig
+      - stepId: SendConfig
+        operationId: $sourceDescriptions.AsyncAPIDeviceBus.sendDeviceConfig
         action: send
         parameters:
           - name: deviceId
@@ -102,9 +99,8 @@ workflows:
               "threshold": {$inputs.threshold}
             }
 
-      - kind: asyncapi
-        stepId: WaitForAck
-        operationId: $sourceDescriptions.DeviceBus.receiveDeviceAck
+      - stepId: WaitForAck
+        operationId: $sourceDescriptions.AsyncAPIDeviceBus.receiveDeviceAck
         action: receive
         correlationId: $inputs.deviceId
         timeout: 10000
@@ -113,9 +109,8 @@ workflows:
         outputs:
           configStatus: $message.payload.status
 
-      - kind: openapi
-        stepId: LogTelemetry
-        operationId: $sourceDescriptions.DeviceApi.logTelemetry
+      - stepId: LogTelemetry
+        operationId: $sourceDescriptions.DeviceOpenApi.logTelemetry
         dependsOn:
           - $steps.WaitForAck
         requestBody:
@@ -131,7 +126,7 @@ workflows:
 
       - kind: openapi
         stepId: SendNotification
-        operationId: $sourceDescriptions.DeviceApi.sendEmail
+        operationId: $sourceDescriptions.DeviceOpenApi.sendEmail
         requestBody:
           contentType: application/json
           payload: |
@@ -140,3 +135,8 @@ workflows:
               "subject": "Device Configuration Complete",
               "body": "Device {$inputs.deviceId} has been successfully configured with mode '{$inputs.mode}' and threshold {$inputs.threshold}. It's configStatus is '{$steps.WaitForAck.configStatus}'"
             }
+        successCriteria:
+          - condition: $statusCode == 200
+
+    outputs:
+      - status: "completed successfully"          

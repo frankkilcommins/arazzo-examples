@@ -24,10 +24,10 @@ info:
        Send an email confirming calibration completion.
 
 sourceDescriptions:
-  - name: SensorApi
+  - name: SensorOpenApi
     type: openapi
     url: ./sensor-mgmt-email.openapi.yaml
-  - name: SensorEvents
+  - name: AsyncAPISensorEvents
     type: asyncapi
     url: ./sensor-calibration-nats.asyncapi.yaml
 
@@ -45,9 +45,8 @@ workflows:
           type: string
 
     steps:
-      - kind: openapi
-        stepId: GetSensor
-        operationId: $sourceDescriptions.SensorApi.getSensor
+      - stepId: GetSensor
+        operationId: $sourceDescriptions.SensorOpenApi.getSensor
         parameters:
           - name: sensorId
             in: path
@@ -61,9 +60,8 @@ workflows:
             type: goto
             stepId: RegisterSensor
 
-      - kind: openapi
-        stepId: RegisterSensor
-        operationId: $sourceDescriptions.SensorApi.registerSensor
+      - stepId: RegisterSensor
+        operationId: $sourceDescriptions.SensorOpenApi.registerSensor
         requestBody:
           contentType: application/json
           payload: |
@@ -78,9 +76,8 @@ workflows:
             type: goto
             stepId: GetSensor
 
-      - kind: asyncapi
-        stepId: SendCalibration
-        operationId: $sourceDescriptions.SensorEvents.sendCalibration
+      - stepId: SendCalibration
+        operationId: $sourceDescriptions.AsyncAPISensorEvents.sendCalibration
         action: send
         parameters:
           - name: sensorId
@@ -97,9 +94,8 @@ workflows:
               "calibrationLevel": {$inputs.calibrationLevel}
             }
 
-      - kind: asyncapi
-        stepId: WaitForCalibration
-        operationId: $sourceDescriptions.SensorEvents.receiveCalibration
+      - stepId: WaitForCalibration
+        operationId: $sourceDescriptions.AsyncAPISensorEvents.receiveCalibration
         action: receive
         correlationId: $inputs.sensorId
         timeout: 8000
@@ -108,9 +104,8 @@ workflows:
         outputs:
           calibrationStatus: $message.payload.status
 
-      - kind: openapi
-        stepId: SendNotification
-        operationId: $sourceDescriptions.SensorApi.sendEmail
+      - stepId: SendNotification
+        operationId: $sourceDescriptions.SensorOpenApi.sendEmail
         dependsOn:
           - $steps.WaitForCalibration
         requestBody:
@@ -121,3 +116,8 @@ workflows:
               "subject": "Calibration Complete",
               "body": "Sensor {$inputs.sensorId} calibration completed with status '{$steps.WaitForCalibration.outputs.calibrationStatus}'."
             }
+        successCriteria:
+          - condition: $statusCode == 200
+
+    outputs:
+      - status: "completed successfully"

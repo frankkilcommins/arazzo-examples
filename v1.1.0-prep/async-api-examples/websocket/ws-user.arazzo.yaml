@@ -8,7 +8,7 @@ info:
   version: 0.0.1
 
 sourceDescriptions:
-  - name: UserApi
+  - name: UserOpenApi
     type: openapi
     url: ./user-mgmt.openapi.yaml
   - name: ChatApi
@@ -29,9 +29,8 @@ workflows:
           type: string
 
     steps:
-      - kind: openapi
-        stepId: GetUser
-        operationId: $sourceDescriptions.UserApi.getUserByName
+      - stepId: GetUser
+        operationId: $sourceDescriptions.UserOpenApi.getUserByName
         parameters:
           - name: name
             in: query
@@ -49,9 +48,8 @@ workflows:
             goto: SendChat
 
 
-      - kind: openapi
-        stepId: CreateUser
-        operationId: $sourceDescriptions.UserApi.createUser
+      - stepId: CreateUser
+        operationId: $sourceDescriptions.UserOpenApi.createUser
         requestBody:
           contentType: application/json
           payload: |
@@ -69,8 +67,7 @@ workflows:
         outputs:
           userId: $response.body#/id
 
-      - kind: asyncapi
-        stepId: SendChat
+      - stepId: SendChat
         operationId: $sourceDescriptions.ChatApi.sendMessage
         action: send
         parameters:
@@ -89,8 +86,7 @@ workflows:
               "message": "{$inputs.message}"
             }
 
-      - kind: asyncapi
-        stepId: ReceiveChat
+      - stepId: ReceiveChat
         operationId: $sourceDescriptions.ChatApi.receiveMessage
         action: receive
         correlationId: $message.correlationId
@@ -99,3 +95,6 @@ workflows:
           - condition: $message.payload != null
         outputs:
           receivedMessage: $message.payload.message
+
+    outputs:
+      - status: "completed successfully"
