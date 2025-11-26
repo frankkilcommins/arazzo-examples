@@ -48,7 +48,7 @@ workflows:
             step: CreateUser
         onSuccess:
           - condition: $statusCode == 200
-            goto: WaitForUserAck
+            goto: SendPaymentRequest
 
       - kind: openapi
         stepId: CreateUser
@@ -72,20 +72,19 @@ workflows:
         timeout: 10000
         successCriteria:
           - condition: $message.payload.status == "ok"
-        outputs:
-          userId: $message.payload.userId
+       onSuccess:
+          - condition: $message.payload.status == "ok"
+            goto: GetUser
 
       - kind: asyncapi
         stepId: SendPaymentRequest
         operationId: $sourceDescriptions.EventBus.sendPaymentRequest
-        dependsOn:
-          - $steps.WaitForUserAck
         action: send
         requestBody:
           contentType: application/json
           payload: |
             {
-              "userId": "{$steps.WaitForUserAck.outputs.userId}",
+              "userId": "{$steps.GetUser.outputs.userId}",
               "productId": "{$inputs.productId}",
               "orderId": "{$inputs.orderId}",
               "amount": "{$inputs.amount}"
@@ -99,7 +98,7 @@ workflows:
         stepId: WaitForPaymentConfirm
         operationId: $sourceDescriptions.EventBus.receivePaymentConfirm
         action: receive
-        correlationId: $steps.WaitForUserAck.outputs.orderId
+        correlationId: $inputs.orderId
         timeout: 15000
         successCriteria:
           - condition: $message.payload.status == "confirmed"
@@ -107,7 +106,7 @@ workflows:
       - kind: openapi
         stepId: SendConfirmationEmail
         operationId: $sourceDescriptions.EmailApi.sendEmail
-        join:
+        dependsOn:
           - $steps.WaitForPaymentConfirm
         requestBody:
           contentType: application/json
