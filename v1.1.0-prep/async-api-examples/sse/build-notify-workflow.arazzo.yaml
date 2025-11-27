@@ -13,10 +13,10 @@ info:
     3. Notify user of the result.
 
 sourceDescriptions:
-  - name: BuildApi
+  - name: BuildOpenApi
     type: openapi
     url: ./build-notify.openapi.yaml
-  - name: BuildEvents
+  - name: AsyncAPIBuildEvents
     type: asyncapi
     url: ./build-events-sse.asyncapi.yaml
 
@@ -34,9 +34,8 @@ workflows:
           type: string
 
     steps:
-      - kind: openapi
-        stepId: StartBuild
-        operationId: $sourceDescriptions.BuildApi.startBuild
+      - stepId: StartBuild
+        operationId: $sourceDescriptions.BuildOpenApi.startBuild
         requestBody:
           contentType: application/json
           payload: |
@@ -49,9 +48,8 @@ workflows:
         outputs:
           buildId: $response.body#/buildId
 
-      - kind: asyncapi
-        stepId: WaitForBuildResult
-        operationId: $sourceDescriptions.BuildEvents.receiveBuildUpdate
+      - stepId: WaitForBuildResult
+        operationId: $sourceDescriptions.AsyncAPIBuildEvents.receiveBuildUpdate
         action: receive
         correlationId: $steps.StartBuild.outputs.buildId
         timeout: 300000
@@ -60,9 +58,8 @@ workflows:
         outputs:
           result: $message.payload.status
 
-      - kind: openapi
-        stepId: NotifyUser
-        operationId: $sourceDescriptions.BuildApi.notifyUser
+      - stepId: NotifyUser
+        operationId: $sourceDescriptions.BuildOpenApi.notifyUser
         dependsOn:
           - $steps.WaitForBuildResult
         requestBody:
@@ -75,3 +72,6 @@ workflows:
             }
         successCriteria:
           - condition: $statusCode == 200
+
+    outputs:
+      - status: "completed successfully"          

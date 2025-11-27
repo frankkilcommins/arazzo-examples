@@ -17,7 +17,7 @@ info:
     4. Send a confirmation notification to the user
 
 sourceDescriptions:
-  - name: DocApi
+  - name: DocOpenApi
     type: openapi
     url: ./document-signing.openapi.yaml
   - name: WebhookApi
@@ -36,9 +36,8 @@ workflows:
           type: string
 
     steps:
-      - kind: openapi
-        stepId: SubmitDocument
-        operationId: $sourceDescriptions.DocApi.submitDocument
+      - stepId: SubmitDocument
+        operationId: $sourceDescriptions.DocOpenApi.submitDocument
         requestBody:
           contentType: application/json
           payload: |
@@ -51,9 +50,8 @@ workflows:
         outputs:
           documentId: $response.body#/documentId
 
-      - kind: asyncapi
-        stepId: WaitForWebhook
-        operationId: $sourceDescriptions.WebhookApi.documentSigned
+      - stepId: WaitForWebhook
+        operationId: $sourceDescriptions.WebhookAsyncApi.documentSigned
         action: receive
         correlationId: $steps.SubmitDocument.outputs.documentId
         timeout: 60000
@@ -62,9 +60,8 @@ workflows:
         outputs:
           docStatus: $message.payload.status
 
-      - kind: openapi
-        stepId: GetStatus
-        operationId: $sourceDescriptions.DocApi.getDocumentStatus
+      - stepId: GetStatus
+        operationId: $sourceDescriptions.DocOpenApi.getDocumentStatus
         dependsOn:
           - $steps.WaitForWebhook
         parameters:
@@ -74,9 +71,8 @@ workflows:
         successCriteria:
           - condition: $response.body#/status == "signed"
 
-      - kind: openapi
-        stepId: NotifyUser
-        operationId: $sourceDescriptions.DocApi.sendNotification
+      - stepId: NotifyUser
+        operationId: $sourceDescriptions.DocOpenApi.sendNotification
         requestBody:
           contentType: application/json
           payload: |
@@ -87,3 +83,6 @@ workflows:
             }
         successCriteria:
           - condition: $statusCode == 200
+
+    outputs:
+      - status: "completed successfully"
