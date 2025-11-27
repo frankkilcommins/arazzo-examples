@@ -34,10 +34,10 @@ info:
 
 
 sourceDescriptions:
-  - name: SupportApi
+  - name: SupportOpenApi
     type: openapi
     url: ./support-users-verified.openapi.yaml
-  - name: SupportEvents
+  - name: SupportAsyncAPIEvents
     type: asyncapi
     url: ./support-events.amqp.asyncapi.yaml
 
@@ -55,9 +55,9 @@ workflows:
           type: string
 
     steps:
-      - kind: openapi
-        stepId: SubmitSupportEmail
-        operationId: $sourceDescriptions.SupportApi.submitSupportEmail
+      - stepId: SubmitSupportEmail
+        description: submit support email      
+        operationId: $sourceDescriptions.SupportOpenApi.submitSupportEmail
         requestBody:
           contentType: application/json
           payload: |
@@ -71,9 +71,9 @@ workflows:
         outputs:
           ticketId: $response.body#/ticketReference
 
-      - kind: openapi
-        stepId: CheckUser
-        operationId: $sourceDescriptions.SupportApi.getUserByEmail
+      - stepId: CheckUser
+        description: check user details (this determines if user exists or if we must create)
+        operationId: $sourceDescriptions.SupportOpenApi.getUserByEmail
         parameters:
           - name: email
             in: query
@@ -93,9 +93,9 @@ workflows:
             type: goto
             stepId: WaitForVerification
 
-      - kind: openapi
-        stepId: CreateUser
-        operationId: $sourceDescriptions.SupportApi.createUser
+      - stepId: CreateUser
+        description: create new user
+        operationId: $sourceDescriptions.SupportOpenApi.createUser
         requestBody:
           contentType: application/json
           payload: |
@@ -109,18 +109,18 @@ workflows:
             type: goto
             stepId: CheckUser
 
-      - kind: asyncapi
-        stepId: WaitForVerification
-        operationId: $sourceDescriptions.SupportEvents.receiveUserVerified
+      - stepId: WaitForVerification
+        description: Wait for the user system to confirm that user email has been verified
+        operationId: $sourceDescriptions.SupportAsyncAPIEvents.receiveUserVerified
         action: receive
         correlationId: $steps.CheckUser.outputs.userId
         timeout: 10000
         successCriteria:
           - condition: $message.payload.email == "{$inputs.email}"
 
-      - kind: asyncapi
-        stepId: SendVerifiedTicketEvent
-        operationId: $sourceDescriptions.SupportEvents.sendTicketCreated
+      - stepId: SendVerifiedTicketEvent
+        description: Once user verification is complete, raise a ticket created event
+        operationId: $sourceDescriptions.SupportAsyncAPIEvents.sendTicketCreated
         dependsOn:
           - $steps.WaitForVerification
         action: send
@@ -138,9 +138,9 @@ workflows:
               "body": "{$inputs.body}"
             }
 
-      - kind: asyncapi
-        stepId: WaitForAck
-        operationId: $sourceDescriptions.SupportEvents.receiveTicketAcknowledged
+      - stepId: WaitForAck
+        description: Wait for ticket reciept acknowledment before confirming details to user
+        operationId: $sourceDescriptions.SupportAsyncAPIEvents.receiveTicketAcknowledged
         action: receive
         correlationId: $steps.SubmitSupportEmail.outputs.ticketId
         timeout: 15000
@@ -151,9 +151,9 @@ workflows:
           etaMinutes: $message.payload.etaMinutes
           realTicketId: $message.payload.ticketId
 
-      - kind: openapi
-        stepId: SendFollowupEmail
-        operationId: $sourceDescriptions.SupportApi.sendEmail
+      - stepId: SendFollowupEmail
+        description: confirm ticket information via email to user
+        operationId: $sourceDescriptions.SupportOpenApi.sendEmail
         dependsOn:
           - $steps.WaitForAck
         requestBody:
@@ -166,3 +166,6 @@ workflows:
             }
         successCriteria:
          - condition: $statusCode == 200
+
+    outputs:
+      - status: "completed successfully"         

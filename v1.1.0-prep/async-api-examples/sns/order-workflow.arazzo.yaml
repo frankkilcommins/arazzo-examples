@@ -11,10 +11,10 @@ info:
     3. Send a confirmation email to the customer
 
 sourceDescriptions:
-  - name: OrderApi
+  - name: OrderOpenApi
     type: openapi
     url: ./order-api.openapi.yaml
-  - name: OrderEvents
+  - name: AsyncAPIOrderEvents
     type: asyncapi
     url: ./order-events-sns.asyncapi.yaml
 
@@ -30,9 +30,8 @@ workflows:
           type: number
 
     steps:
-      - kind: openapi
-        stepId: CreateOrder
-        operationId: $sourceDescriptions.OrderApi.createOrder
+      - stepId: CreateOrder
+        operationId: $sourceDescriptions.OrderOpenApi.createOrder
         requestBody:
           contentType: application/json
           payload: |
@@ -45,9 +44,8 @@ workflows:
         outputs:
           orderId: $response.body#/orderId
 
-      - kind: asyncapi
-        stepId: NotifySNS
-        operationId: $sourceDescriptions.OrderEvents.sendOrderPlaced
+      - stepId: NotifySNS
+        operationId: $sourceDescriptions.AsyncAPIOrderEvents.sendOrderPlaced
         action: send
         requestBody:
           contentType: application/json
@@ -58,9 +56,8 @@ workflows:
               "total": {$inputs.total}
             }
 
-      - kind: openapi
-        stepId: SendConfirmationEmail
-        operationId: $sourceDescriptions.OrderApi.sendConfirmationEmail
+      - stepId: SendConfirmationEmail
+        operationId: $sourceDescriptions.OrderOpenApi.sendConfirmationEmail
         requestBody:
           contentType: application/json
           payload: |
@@ -71,3 +68,6 @@ workflows:
             }
         successCriteria:
           - $statusCode == 200
+
+    outputs:
+      - status: "completed successfully"          

@@ -12,7 +12,7 @@ info:
     4. Notify a supervisor via email
 
 sourceDescriptions:
-  - name: EscalationApi
+  - name: EscalationOpenApi
     type: openapi
     url: ./support-escalation.openapi.yaml
   - name: EscalationEvents
@@ -35,9 +35,8 @@ workflows:
           type: string
 
     steps:
-      - kind: openapi
-        stepId: CreateTicket
-        operationId: $sourceDescriptions.EscalationApi.createTicket
+      - stepId: CreateTicket
+        operationId: $sourceDescriptions.EscalationOpenApi.createTicket
         requestBody:
           contentType: application/json
           payload: |
@@ -51,9 +50,8 @@ workflows:
         outputs:
           ticketId: $response.body#/ticketId
 
-      - kind: asyncapi
-        stepId: WaitForEscalation
-        operationId: $sourceDescriptions.EscalationEvents.receiveEscalation
+      - stepId: WaitForEscalation
+        operationId: $sourceDescriptions.AsyncAPIEscalationEvents.receiveEscalation
         action: receive
         correlationId: $steps.CreateTicket.outputs.ticketId
         timeout: 15000
@@ -63,9 +61,8 @@ workflows:
           escalatedReason: $message.payload.reason
           escalatedPriority: $message.payload.priority
 
-      - kind: openapi
-        stepId: LogEscalation
-        operationId: $sourceDescriptions.EscalationApi.logEscalation
+      - stepId: LogEscalation
+        operationId: $sourceDescriptions.EscalationOpenApi.logEscalation
         dependsOn: 
           - $steps.WaitForEscalation
         requestBody:
@@ -79,9 +76,8 @@ workflows:
         successCriteria:
           - condition: $statusCode == 200
 
-      - kind: openapi
-        stepId: NotifySupervisor
-        operationId: $sourceDescriptions.EscalationApi.notifySupervisor
+      - stepId: NotifySupervisor
+        operationId: $sourceDescriptions.EscalationOpenApi.notifySupervisor
         requestBody:
           contentType: application/json
           payload: |
@@ -92,3 +88,6 @@ workflows:
             }
         successCriteria:
           - $statusCode == 200
+
+    outputs:
+      - status: "completed successfully"          

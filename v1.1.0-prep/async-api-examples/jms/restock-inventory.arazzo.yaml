@@ -13,10 +13,10 @@ info:
     3. Patch local inventory system via OpenAPI
 
 sourceDescriptions:
-  - name: InventoryApi
+  - name: InventoryOpenApi
     type: openapi
     url: ./inventory-api.openapi.yaml
-  - name: InventoryEvents
+  - name: InventoryAsyncAPIEvents
     type: asyncapi
     url: ./inventory-jms.asyncapi.yaml
 
@@ -32,9 +32,8 @@ workflows:
           type: integer
 
     steps:
-      - kind: asyncapi
-        stepId: SendRestock
-        operationId: $sourceDescriptions.InventoryEvents.sendRestockRequest
+      - stepId: SendRestock
+        operationId: $sourceDescriptions.InventoryAsyncAPIEvents.sendRestockRequest
         action: send
         requestBody:
           contentType: application/json
@@ -44,9 +43,8 @@ workflows:
               "restockAmount": {$inputs.restockAmount}
             }
 
-      - kind: asyncapi
-        stepId: WaitForConfirmation
-        operationId: $sourceDescriptions.InventoryEvents.receiveRestockConfirmation
+      - stepId: WaitForConfirmation
+        operationId: $sourceDescriptions.InventoryAsyncAPIEvents.receiveRestockConfirmation
         action: receive
         correlationId: $inputs.productId
         timeout: 10000
@@ -55,9 +53,8 @@ workflows:
         outputs:
           confirmedAmount: $message.payload.confirmedAmount
 
-      - kind: openapi
-        stepId: UpdateInventory
-        operationId: $sourceDescriptions.InventoryApi.updateInventory
+      - stepId: UpdateInventory
+        operationId: $sourceDescriptions.InventoryOpenApi.updateInventory
         dependsOn:
           - $steps.WaitForConfirmation
         parameters:
@@ -72,3 +69,6 @@ workflows:
             }
         successCriteria:
           - condition: $statusCode == 200
+
+    outputs:
+      - status: "completed successfully"          

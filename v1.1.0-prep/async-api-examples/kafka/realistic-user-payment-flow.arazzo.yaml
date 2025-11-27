@@ -8,10 +8,10 @@ info:
     waits for confirmation, and then sends a confirmation email.
 
 sourceDescriptions:
-  - name: UserEmailApi
+  - name: UserEmailOpenApi
     type: openapi
     url: ./user-email-api.openapi.yaml
-  - name: EventBus
+  - name: AsyncAPIEventBus
     type: asyncapi
     url: ./user-payment-events.asyncapi.yaml
 
@@ -31,9 +31,8 @@ workflows:
           type: number
 
     steps:
-      - kind: openapi
-        stepId: GetUser
-        operationId: $sourceDescriptions.UserEmailApi.getUserByEmail
+      - stepId: GetUser
+        operationId: $sourceDescriptions.UserEmailOpenApi.getUserByEmail
         parameters:
           - name: email
             in: query
@@ -50,9 +49,8 @@ workflows:
           - condition: $statusCode == 200
             goto: SendPaymentRequest
 
-      - kind: openapi
-        stepId: CreateUser
-        operationId: $sourceDescriptions.UserEmailApi.createUser
+      - stepId: CreateUser
+        operationId: $sourceDescriptions.UserEmailOpenApi.createUser
         requestBody:
           contentType: application/json
           payload: |
@@ -64,11 +62,10 @@ workflows:
         outputs:
           userCorrelationId: $response.body#/correlationId
 
-      - kind: asyncapi
-        stepId: WaitForUserAck
-        operationId: $sourceDescriptions.EventBus.receiveUserAck
+      - stepId: WaitForUserAck
+        operationId: $sourceDescriptions.AsyncAPIEventBus.receiveUserAck
         action: receive
-        correlationId: $steps.CreateUser.outputs.userCorrelationId
+        correlationId: $steps.GetUser.outputs.userCorrelationId
         timeout: 10000
         successCriteria:
           - condition: $message.payload.status == "ok"
@@ -76,9 +73,8 @@ workflows:
           - condition: $message.payload.status == "ok"
             goto: GetUser
 
-      - kind: asyncapi
-        stepId: SendPaymentRequest
-        operationId: $sourceDescriptions.EventBus.sendPaymentRequest
+      - stepId: SendPaymentRequest
+        operationId: $sourceDescriptions.AsyncAPIEventBus.sendPaymentRequest
         action: send
         requestBody:
           contentType: application/json
@@ -94,9 +90,8 @@ workflows:
             in: header
             value: "{$inputs.orderId}"
 
-      - kind: asyncapi
-        stepId: WaitForPaymentConfirm
-        operationId: $sourceDescriptions.EventBus.receivePaymentConfirm
+      - stepId: WaitForPaymentConfirm
+        operationId: $sourceDescriptions.AsyncAPIEventBus.receivePaymentConfirm
         action: receive
         correlationId: $inputs.orderId
         timeout: 15000
@@ -105,7 +100,7 @@ workflows:
 
       - kind: openapi
         stepId: SendConfirmationEmail
-        operationId: $sourceDescriptions.EmailApi.sendEmail
+        operationId: $sourceDescriptions.UserEmailOpenApi.sendEmail
         dependsOn:
           - $steps.WaitForPaymentConfirm
         requestBody:
@@ -116,3 +111,8 @@ workflows:
               "subject": "Your order #{$inputs.orderId} is confirmed!",
               "body": "Thanks for your purchase. Your payment has been received."
             }
+        successCriteria:
+          - condition: $statusCode == 200
+
+    outputs:
+      - status: "completed successfully"

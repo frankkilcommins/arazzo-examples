@@ -36,8 +36,7 @@ workflows:
           type: string
 
     steps:
-      - kind: openapi
-        stepId: SubmitDocument
+      - stepId: SubmitDocument
         operationId: $sourceDescriptions.DocApi.submitDocument
         requestBody:
           contentType: application/json
@@ -51,8 +50,7 @@ workflows:
         outputs:
           documentId: $response.body#/documentId
 
-      - kind: openapi
-        stepId: WaitForWebhook
+      - stepId: WaitForWebhook
         operationId: $sourceDescriptions.WebhookApi.documentSignedWebhook
         action: receive
         correlationId: $steps.SubmitDocument.outputs.documentId
@@ -62,8 +60,7 @@ workflows:
         outputs:
           docStatus: $message.payload.status
 
-      - kind: openapi
-        stepId: GetStatus
+      - stepId: GetStatus
         operationId: $sourceDescriptions.DocApi.getDocumentStatus
         dependsOn:
           - $steps.WaitForWebhook
@@ -74,8 +71,7 @@ workflows:
         successCriteria:
           - condition: $response.body#/status == "signed"
 
-      - kind: openapi
-        stepId: NotifyUser
+      - stepId: NotifyUser
         operationId: $sourceDescriptions.DocApi.sendNotification
         requestBody:
           contentType: application/json
@@ -87,3 +83,5 @@ workflows:
             }
         successCriteria:
           - condition: $statusCode == 200
+    outputs:
+      - status: "completed successfully"
